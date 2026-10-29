@@ -1,6 +1,7 @@
 using UnityEngine;
 using TMPro;   
 using UnityEngine.Rendering.Universal;   // 2D light
+using UnityEngine.SceneManagement;       // Reloads scence
 
 // Uses WASD to move Chuck
 public class ChuckController : MonoBehaviour {
@@ -18,12 +19,16 @@ public class ChuckController : MonoBehaviour {
     public Light2D globalLight;         // Sky changes color
     private float timeLeft;             // Seconds remaining
 
+    public GameObject endPanel;         // Displays the win/lose screen
+    public TextMeshProUGUI endText;     
+
     private bool nearBasket = false;    // Checks if Chuck is on the basket
     private bool gameOver = false;      
 
     void Start() {
         totalEggs = GameObject.FindGameObjectsWithTag("Egg").Length;   // Counts all eggs
         timeLeft = timeLimit;                                          // Begins timer
+        endPanel.SetActive(false);                                     // Hides the end screen
         UpdateUI();
     }
 
@@ -57,8 +62,7 @@ public class ChuckController : MonoBehaviour {
         // Lose if the sun fully sets
         if (timeLeft <= 0) {
             timerText.text = "Sunset in: 0";
-            messageText.text = "The sun set! Chuck ran out of time.";
-            gameOver = true;
+            EndGame("The sun set! Chuck ran out of time.");   // Lose screen
             return;
         }
 
@@ -73,11 +77,21 @@ public class ChuckController : MonoBehaviour {
         // Move Chuck using physics so he can't walk through obstacles
         GetComponent<Rigidbody2D>().linearVelocity = new Vector2(x, y) * speed;
 
+        // Make Chuck face the way he's walking
+        if (x < 0) GetComponent<SpriteRenderer>().flipX = true;    // Facing left
+        if (x > 0) GetComponent<SpriteRenderer>().flipX = false;   // Facing right
+
+        // Waddle side to side while walking, stand straight when stopped
+        if (x != 0 || y != 0) {
+            transform.rotation = Quaternion.Euler(0, 0, Mathf.Sin(Time.time * 15f) * 10f);
+        } else {
+            transform.rotation = Quaternion.identity;
+        }
+
         // Press E at the basket to return the eggs
         if (nearBasket && Input.GetKeyDown(KeyCode.E)) {
             if (eggsCollected == totalEggs) {
-                messageText.text = "You win! Chuck found all the eggs!";
-                gameOver = true;
+                EndGame("You win! Chuck found all the eggs!");  
             } else {
                 messageText.text = "Find all the eggs first!";
             }
@@ -111,5 +125,23 @@ public class ChuckController : MonoBehaviour {
     void UpdateUI() {
         eggText.text = "Eggs: " + eggsCollected + " / " + totalEggs;
         scoreText.text = "Score: " + score;
+    }
+
+    // Ends the game and shows the win/lose screen with the final score
+    void EndGame(string message) {
+        gameOver = true;
+        messageText.text = "";                              // Clear the middle message
+        endText.text = message + "\nFinal Score: " + score; 
+        endPanel.SetActive(true);                           
+    }
+
+    // Called by the Play Again button
+    public void PlayAgain() {
+        SceneManager.LoadScene("SampleScene");   // Restart the garden
+    }
+
+    // Called by the Main Menu button
+    public void MainMenu() {
+        SceneManager.LoadScene("TitleScreen");   // Go back to the title screen
     }
 }
