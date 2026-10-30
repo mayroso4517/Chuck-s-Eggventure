@@ -1,7 +1,8 @@
 using UnityEngine;
 using TMPro;   
 using UnityEngine.Rendering.Universal;   // 2D light
-using UnityEngine.SceneManagement;       // Reloads scence
+using UnityEngine.SceneManagement;       // Reloads scenes
+using UnityEngine.UI;                    // Changes the color of the sky
 
 // Uses WASD to move Chuck
 public class ChuckController : MonoBehaviour {
@@ -19,8 +20,19 @@ public class ChuckController : MonoBehaviour {
     public Light2D globalLight;         // Sky changes color
     private float timeLeft;             // Seconds remaining
 
+    public Image skyWindow;             // The sky above the garden
+    public RectTransform sun;           // The sun that sets behind the hills
+    public RectTransform moon;          // The moon that rises at night
+
     public GameObject endPanel;         // Displays the win/lose screen
     public TextMeshProUGUI endText;     
+
+    public AudioClip eggSound;          // Plays when Chuck picks up an egg
+    public AudioClip rainbowSound;      // Plays when Chuck picks up the rainbow egg
+    public AudioClip chirpSound;        // Plays when Chuck tries the basket too early
+    public AudioClip winSound;          // Plays when Chuck wins
+    public AudioClip loseSound;         // Plays when the sun sets
+    private AudioSource audioSource;    // Plays the sounds
 
     private bool nearBasket = false;    // Checks if Chuck is on the basket
     private bool gameOver = false;      
@@ -29,6 +41,7 @@ public class ChuckController : MonoBehaviour {
         totalEggs = GameObject.FindGameObjectsWithTag("Egg").Length;   // Counts all eggs
         timeLeft = timeLimit;                                          // Begins timer
         endPanel.SetActive(false);                                     // Hides the end screen
+        audioSource = GetComponent<AudioSource>();                     // Finds the audio source
         UpdateUI();
     }
 
@@ -59,9 +72,25 @@ public class ChuckController : MonoBehaviour {
             globalLight.intensity = Mathf.Lerp(0.3f, 1f, daylight * 2);   // Gets dimmer too
         }
 
+        // Changes the color of the sky
+        if (daylight > 0.5f) {
+            skyWindow.color = Color.Lerp(new Color(1f, 0.55f, 0.25f), new Color(0.5f, 0.8f, 1f), (daylight - 0.5f) * 2);
+        } else {
+            skyWindow.color = Color.Lerp(new Color(0.1f, 0.1f, 0.3f), new Color(1f, 0.55f, 0.25f), daylight * 2);
+        }
+
+        // Sun lowers into the hills as time runs out
+        sun.anchoredPosition = new Vector2(sun.anchoredPosition.x, Mathf.Lerp(-130f, 40f, daylight));
+
+        // Moon rises during the second half of the timer
+        if (daylight < 0.5f) {
+            moon.anchoredPosition = new Vector2(moon.anchoredPosition.x, Mathf.Lerp(30f, -130f, daylight * 2));
+        }
+
         // Lose if the sun fully sets
         if (timeLeft <= 0) {
             timerText.text = "Sunset in: 0";
+            PlaySound(loseSound);                              // Lose sound
             EndGame("The sun set! Chuck ran out of time.");   // Lose screen
             return;
         }
@@ -91,8 +120,10 @@ public class ChuckController : MonoBehaviour {
         // Press E at the basket to return the eggs
         if (nearBasket && Input.GetKeyDown(KeyCode.E)) {
             if (eggsCollected == totalEggs) {
+                PlaySound(winSound);                              // Win sound
                 EndGame("You win! Chuck found all the eggs!");  
             } else {
+                PlaySound(chirpSound);                            
                 messageText.text = "Find all the eggs first!";
             }
         }
@@ -101,11 +132,19 @@ public class ChuckController : MonoBehaviour {
     // Egg collection
     void OnTriggerEnter2D(Collider2D other) {
         if (other.CompareTag("Egg")) {
-            eggsCollected++;                             // Add 1 to the egg count
-            score += other.GetComponent<Egg>().points;   // Add the egg's points
+            int points = other.GetComponent<Egg>().points;   // How much this egg is worth
+            eggsCollected++;                                 // Add 1 to the egg count
+            score += points;                                 // Add the egg's points
+
+            // Special sound for the rainbow egg, normal sound for the others
+            if (points > 1) {
+                PlaySound(rainbowSound);
+            } else {
+                PlaySound(eggSound);
+            }
+
             Destroy(other.gameObject);
-            Debug.Log("Eggs: " + eggsCollected + "  Score: " + score);
-            UpdateUI();                                  // Updates numbers
+            UpdateUI();                                      // Updates numbers
         }
 
         if (other.CompareTag("Basket")) {
@@ -125,6 +164,12 @@ public class ChuckController : MonoBehaviour {
     void UpdateUI() {
         eggText.text = "Eggs: " + eggsCollected + " / " + totalEggs;
         scoreText.text = "Score: " + score;
+    }
+
+    void PlaySound(AudioClip clip) {
+        if (clip != null && audioSource != null) {
+            audioSource.PlayOneShot(clip);
+        }
     }
 
     // Ends the game and shows the win/lose screen with the final score
